@@ -11,12 +11,12 @@ Basic plugin for displaying the weather
 import asyncio
 import datetime
 import re
+import geocoder
+import requests
+from time import strftime
 
 from forcastiopy import *
 #figure out why it doesn't work unless it's imported this way
-
-import geocoder
-from time import strftime
 
 import irc3
 from irc3.plugins.command import command
@@ -47,17 +47,17 @@ class WeatherPlugin(object):
             "in the config section [{}]".format(__name__))
 
     @command
-    def sunrise(self, mask, target, args):
+    def w(self, mask, target, args):
         """Gives the time the sun will rise
 
-            %%sunrise [<location>]...
+            %%w [<location>]...
         """
         if target == self.bot.nick:
             target = mask.nick
 
         @asyncio.coroutine
         def wrap():
-            response = yield from self.sunrise_response(mask, args)
+            response = yield from self.w_response(mask, args)
             self.log.debug(response)
             self.bot.privmsg(target, response)
         asyncio.async(wrap())
@@ -68,8 +68,8 @@ class WeatherPlugin(object):
 #also how useful is getting the sunrise time?
 
     @asyncio.coroutine
-    def sunrise_response(self, mask, args):
-        """Returns appropriate reponse to sunrise request"""
+    def w_response(self, mask, args):
+        """Returns appropriate reponse to w request"""
         local = args['<location>']
         if not local:
             try:
@@ -77,20 +77,31 @@ class WeatherPlugin(object):
             except KeyError:
                 response = "I don't have a location set for you."
                 return response
+        else:
+            g = geocoder.google(' '.join(args['<location>']))
+            location = g.latlng
+            if location == []:
+                response = "Sorry, I can't seem to find that place."
+                return response
+
         try:
             self.fio.get_forecast(location[0], location[1])
-
         except (requests.exceptions.Timeout,
                 requests.exceptions.TooManyRedirects,
                 requests.exceptions.RequestException,
-                KeyError, HTTPError)as e:
+                KeyError, requests.exceptions.HTTPError)as e:
             errmsg = str(e)
             return errmsg
 
-        daily = FIODaily.FIODaily(self.fio)
-        sunrise daily.get_day(1)["sunriseTime"]
-        time = datetime.datetime.fromtimestamp(int(sunrise)).strftime("%I:%M %p (%m/%d/%y)")
-        response = 'The next sunrise for you is at: {0}'.format(time)
+        current = FIOCurrently.FIOCurrently(self.fio)
+        flags = FIOFlags.FIOFlags(self.fio).units
+        if flags == "us":
+            deg = "F"
+        else:
+            deg = "C"
+        response = "{0}, {1}\u00B0 {2}".format(current.summary, current.temperature,deg)
+        #time = datetime.datetime.fromtimestamp(int(sunrise)).strftime("%I:%M %p (%m/%d/%y)")
+        #response = 'The next sunrise for you is at: {0}'.format(time)
         return response
 
 # Set the api key using the system's environmental variables.
@@ -103,6 +114,7 @@ class WeatherPlugin(object):
         """
         location = ' '.join(args['<location>'])
         g = geocoder.google(location)
+
         self.log.info("Storing location %s for %s", location, mask.nick)
         self.bot.get_user(mask.nick).set_setting('latlong', g.latlng)
         self.bot.privmsg(target, "Got it.")
