@@ -15,7 +15,7 @@ import geocoder
 import requests
 from time import strftime
 
-from forcastiopy import *
+from forecastiopy import *
 #figure out why it doesn't work unless it's imported this way
 
 import irc3
@@ -93,13 +93,19 @@ class WeatherPlugin(object):
             errmsg = str(e)
             return errmsg
 
+        p = geocoder.google(str(location), method="reverse")
+
+        if (p.city, p.state) :
+            place = "{0}, {1}".format(p.city, p.state)
+        else:
+            place = p.country
         current = FIOCurrently.FIOCurrently(self.fio)
         flags = FIOFlags.FIOFlags(self.fio).units
         if flags == "us":
             deg = "F"
         else:
             deg = "C"
-        response = "{0}, {1}\u00B0 {2}".format(current.summary, current.temperature,deg)
+        response = "{0} - {1}, {2}\u00B0{3}".format(place, current.summary, current.temperature, deg)
         #time = datetime.datetime.fromtimestamp(int(sunrise)).strftime("%I:%M %p (%m/%d/%y)")
         #response = 'The next sunrise for you is at: {0}'.format(time)
         return response
