@@ -63,24 +63,22 @@ class WeatherPlugin(object):
         asyncio.async(wrap())
 
 #TODO
-#when args are provided needs to be parsed to get the lat and long values
-#so far only works if latlong for a user exist
-#also how useful is getting the sunrise time?
-
+#Still not correctly working when no args are given.
     @asyncio.coroutine
     def w_response(self, mask, args):
         """Returns appropriate reponse to w request"""
         local = args['<location>']
-        if not local:
-            try:
-                location = yield from self.get_local(mask.nick)
-            except KeyError:
-                response = "I don't have a location set for you."
-                return response
-        else:
-            g = geocoder.google(' '.join(args['<location>']))
+        location = yield from self.get_local(mask.nick)
+
+        if not local and location is None:
+            response = "Can you tell me where you are again?"
+            return response
+        elif local: # if both args and db values exist, args take priority
+            if location is None:
+                self.set_local(mask.nick, args)
+            g = geocoder.google(' '.join(local))
             location = g.latlng
-            if location == []:
+            if not location:
                 response = "Sorry, I can't seem to find that place."
                 return response
 
@@ -93,12 +91,13 @@ class WeatherPlugin(object):
             errmsg = str(e)
             return errmsg
 
+        #maybe it would be nice if the city name was stored too?
         p = geocoder.google(str(location), method="reverse")
-
-        if (p.city, p.state) :
+        if (p.city, p.state):
             place = "{0}, {1}".format(p.city, p.state)
         else:
             place = p.country
+
         current = FIOCurrently.FIOCurrently(self.fio)
         flags = FIOFlags.FIOFlags(self.fio).units
         if flags == "us":
@@ -106,17 +105,12 @@ class WeatherPlugin(object):
         else:
             deg = "C"
         response = "{0} - {1}, {2}\u00B0{3}".format(place, current.summary, current.temperature, deg)
-        #time = datetime.datetime.fromtimestamp(int(sunrise)).strftime("%I:%M %p (%m/%d/%y)")
-        #response = 'The next sunrise for you is at: {0}'.format(time)
         return response
 
 # Set the api key using the system's environmental variables.
 # $ export GOOGLE_API_KEY=<Secret API Key>
-    @command
-    def setlocal(self, mask, target, args):
+    def set_local(self, mask, args):
         """Sets the longitude and latitude of the user
-
-            %%setlocal <location>...
         """
         location = ' '.join(args['<location>'])
         g = geocoder.google(location)
@@ -127,10 +121,15 @@ class WeatherPlugin(object):
 
     @asyncio.coroutine
     def get_local(self, nick):
-        """Gets the location associated with a user from the database"""
-        user = self.bot.get_user(nick)
-        if user:
+        """Gets the location associated with a user from the database.
+        If user is not in the database, returns None.
+        """
             result = yield from user.get_setting('latlong', nick)
             return result
-        else:
-            raise KeyError
+
+def _unixformat(unixtime):
+    """Turns Unix Time into something readable
+
+    Example: "9:34 PM (08/24/16)"
+    """
+    time = datetime.datetime.fromtimestamp(int(unixtime)).strftime("%I:%M %p (%m/%d/%y)")
