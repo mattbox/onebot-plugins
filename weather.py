@@ -39,6 +39,13 @@ class WeatherPlugin(object):
         self.bot = bot
         self.log = bot.log.getChild(__name__)
         self.config = bot.config.get(__name__, {})
+        try:
+            self.fio = ForecastIO.ForecastIO(self.config['api_key'])
+        except KeyError:
+            raise Exception(
+                "You need to set the Last.FM api_key and api_scret "
+                "in the config section [{}]".format(__name__))
+
 
     @command
     def w(self, mask, target, args):
@@ -76,7 +83,7 @@ class WeatherPlugin(object):
                 response = "Sorry, I can't seem to find that place."
                 return response
         try:
-            self.fio = ForecastIO.ForecastIO(self.config['api_key'], location[0], location[1])
+            self.fio.get_forecast(location[0],location[1])
         except (requests.exceptions.Timeout,
                 requests.exceptions.TooManyRedirects,
                 requests.exceptions.RequestException,
@@ -118,8 +125,9 @@ class WeatherPlugin(object):
         """Gets the location associated with a user from the database.
         If user is not in the database, returns None.
         """
-            result = yield from user.get_setting('latlong', nick)
-            return result
+        user = self.bot.get_user(nick)
+        result = yield from user.get_setting('latlong', nick)
+        return result
 
 def _unixformat(unixtime):
     """Turns Unix Time into something readable
