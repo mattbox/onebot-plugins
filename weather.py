@@ -39,12 +39,6 @@ class WeatherPlugin(object):
         self.bot = bot
         self.log = bot.log.getChild(__name__)
         self.config = bot.config.get(__name__, {})
-        try:
-            self.fio = ForecastIO.ForecastIO(self.config['api_key'])
-        except ValueError:
-            raise Exception(
-            "You need to set a Dark Sky api_key "
-            "in the config section [{}]".format(__name__))
 
     @command
     def w(self, mask, target, args):
@@ -81,17 +75,17 @@ class WeatherPlugin(object):
             if not location:
                 response = "Sorry, I can't seem to find that place."
                 return response
-
         try:
-            self.fio.get_forecast(location[0], location[1])
+            self.fio = ForecastIO.ForecastIO(self.config['api_key'], location[0], location[1])
         except (requests.exceptions.Timeout,
                 requests.exceptions.TooManyRedirects,
                 requests.exceptions.RequestException,
-                KeyError, requests.exceptions.HTTPError)as e:
+                requests.exceptions.HTTPError,
+                ValueError, KeyError)as e:
             errmsg = str(e)
             return errmsg
 
-        #maybe it would be nice if the city name was stored too?
+#maybe it would be nice if the city name was stored too?
         p = geocoder.google(str(location), method="reverse")
         if (p.city, p.state):
             place = "{0}, {1}".format(p.city, p.state)
