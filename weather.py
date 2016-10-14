@@ -11,12 +11,11 @@ Basic plugin for displaying the weather
 import asyncio
 import datetime
 import re
+
 import geocoder
 import requests
+from darksky import DarkSky
 from time import strftime
-
-from forecastiopy import *
-#figure out why it doesn't work unless it's imported this way
 
 import irc3
 from irc3.plugins.command import command
@@ -40,12 +39,11 @@ class WeatherPlugin(object):
         self.log = bot.log.getChild(__name__)
         self.config = bot.config.get(__name__, {})
         try:
-            self.fio = ForecastIO.ForecastIO(self.config['api_key'])
+            self.api_key = self.config['api_key']
         except KeyError:
             raise Exception(
-                "You need to set the Last.FM api_key and api_scret "
+                "You need to set the DarkSky.net api_key"
                 "in the config section [{}]".format(__name__))
-
 
     @command
     def w(self, mask, target, args):
@@ -63,8 +61,8 @@ class WeatherPlugin(object):
             self.bot.privmsg(target, response)
         asyncio.async(wrap())
 
-#TODO
-#Still not correctly working when no args are given.
+# TODO
+# Still not correctly working when no args are given.
     @asyncio.coroutine
     def w_response(self, mask, args):
         """Returns appropriate reponse to w request"""
@@ -74,7 +72,7 @@ class WeatherPlugin(object):
         if not local and location is None:
             response = "Can you tell me where you are again?"
             return response
-        elif local: # if both args and db values exist, args take priority
+        elif local:  # if both values exist, args take priority
             if location is None:
                 self.set_local(mask.nick, args)
             g = geocoder.google(' '.join(local))
@@ -83,7 +81,7 @@ class WeatherPlugin(object):
                 response = "Sorry, I can't seem to find that place."
                 return response
         try:
-            self.fio.get_forecast(location[0],location[1])
+            self.ds = DarkSky(location)
         except (requests.exceptions.Timeout,
                 requests.exceptions.TooManyRedirects,
                 requests.exceptions.RequestException,
@@ -92,20 +90,22 @@ class WeatherPlugin(object):
             errmsg = str(e)
             return errmsg
 
-#maybe it would be nice if the city name was stored too?
+        summary = self.ds.forecast.currently.summary
+        temp = self.ds.forecast.currently.temperature
+
+# maybe it would be nice if the city name was stored too?
         p = geocoder.google(str(location), method="reverse")
         if (p.city, p.state):
             place = "{0}, {1}".format(p.city, p.state)
         else:
             place = p.country
 
-        current = FIOCurrently.FIOCurrently(self.fio)
-        flags = FIOFlags.FIOFlags(self.fio).units
-        if flags == "us":
+        if self.ds.forecast.flags.units == "us":
             deg = "F"
         else:
             deg = "C"
-        response = "{0} - {1}, {2}\u00B0{3}".format(place, current.summary, current.temperature, deg)
+        response = "{0} - {1}, {2}\u00B0{3}".format(
+            place, summary, temperature, deg)
         return response
 
 # Set the api key using the system's environmental variables.
@@ -129,9 +129,18 @@ class WeatherPlugin(object):
         result = yield from user.get_setting('latlong', nick)
         return result
 
-def _unixformat(unixtime):
+
+def _unixformat(unixtime,d=False):
     """Turns Unix Time into something readable
 
-    Example: "9:34 PM (08/24/16)"
+    "9:34 PM (08/24/16)"
     """
-    time = datetime.datetime.fromtimestamp(int(unixtime)).strftime("%I:%M %p (%m/%d/%y)")
+    time = datetime.datetime.fromtimestamp(
+        int(unixtime)).strftime("%I:%M %p")
+
+    date = datetime.datetime.fromtimestamp(
+        int(unixtime)).strftime(" (%m/%d/%y)")
+    if d:
+        return time + date
+    else:
+        return time
