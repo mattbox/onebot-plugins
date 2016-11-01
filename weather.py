@@ -70,11 +70,10 @@ class WeatherPlugin(object):
         location = yield from self.get_local(mask.nick)
 
         if not local and location is None:
-            response = "Can you tell me where you are again?"
+            response = "I don't remember where you are"
             return response
         elif local:  # if both values exist, args take priority
-            if location is None:
-                self.set_local(mask.nick, args)
+            self.set_local(mask.nick, args)
             g = geocoder.google(' '.join(local))
             location = g.latlng
             if not location:
