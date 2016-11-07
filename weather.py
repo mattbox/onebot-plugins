@@ -27,7 +27,6 @@ class WeatherPlugin(object):
 
     * Weather Plugin
     """
-
     requires = [
         'irc3.plugins.command',
         'onebot.plugins.users'
@@ -64,20 +63,18 @@ class WeatherPlugin(object):
     def w_response(self, mask, args):
         """Returns appropriate reponse to w request"""
         local = args['<location>'] #searchable string
-        location = yield from self.get_local(mask.nick) #dict of lat,long
+        location = yield from self.get_local(mask.nick)
 
         if not local and not location:
             response = "Sorry, I don't remember where you are"
             return response
-
-        if local:
+        elif local:
             try:
-                geo = yield from self.get_geo(mask.nick, args)
+                location = yield from self.get_geo(mask.nick, args)
             except ConnectionError as status:
                 response = "Sorry, I could't find that place - " + str(status)
                 return response
-            self.set_local(mask.nick, geo) # if args are provided remember them
-            location = yield from self.get_local(mask.nick)
+            self.set_local(mask.nick, geo) # remember args when given
 
         try:
             self.ds = DarkSky(location[:2])
@@ -85,9 +82,8 @@ class WeatherPlugin(object):
                 requests.exceptions.TooManyRedirects,
                 requests.exceptions.RequestException,
                 requests.exceptions.HTTPError,
-                ValueError, KeyError)as e:
-            errmsg = str(e)
-            return errmsg
+                ValueError, KeyError)as errmsg:
+            return str(errmsg)
 
         summary = self.ds.forecast.currently.summary
         temp = self.ds.forecast.currently.temperature
@@ -103,42 +99,42 @@ class WeatherPlugin(object):
 # $ export GOOGLE_API_KEY=<Secret API Key>
     @asyncio.coroutine
     def get_geo(self, mask, args):
-    """Gets the geographical information from Google
+    """Gets the geographical information from Google Geocoding,
+    returns [latitude,longitude,"city"]
     """
-        location = ' '.join(args['<location>'])
-        geo = geocoder.google(location)
+        local = ' '.join(args['<location>'])
+        geo = geocoder.google(local)
 
         if geo.status == "OK":
-            return geo
+            location = geo.latlng
+            if (geo.city, geo.state):
+                location.append("{0}, {1}".format(geo.city, geo.state))
+            else:
+                location.append(geo.country)
+            return location
         else:
-            self.log.info("Google Geocode error for {0} - {1}".format(mask.nick, geo.status))
+            self.log.info("Geocode error for {0} - {1}".format(mask.nick,
+                geo.status))
             raise ConnectionError(geo.status)
 
-    def set_local(self, mask, geo):
-        """Sets the location of the user as a list of
-        [longitude, latitude,"city"]
+    def set_local(self, mask, location):
+        """Stores the location of the user as a list of
+        [longitude, latitude, "city name"]
         """
-        location = geo.latlng
-
-        if (geo.city, geo.state):
-            location.append("{0}, {1}".format(p.city, p.state))
-        else:
-            location.append(geo.country)
-
-        self.log.info("Storing local {0} for {1}".format(location, mask.nick))
-        self.bot.get_user(mask.nick).set_setting('latlong', location)
+        self.log.info("Storing location {0} for {1}".format(location, mask.nick))
+        self.bot.get_user(mask.nick).set_setting('location', location)
         #self.bot.privmsg(target, "Got it.")
 
     @asyncio.coroutine
     def get_local(self, nick):
-        """Gets the location, in the form of latitude and longitude,
-        associated with a user from the database.
+        """Gets the location, associated with a user from the database.
         If user is not in the database, returns None.
         """
         user = self.bot.get_user(nick)
-        result = yield from user.get_setting('latlong', nick)
+        result = yield from user.get_setting('location', nick)
         return result
 
+#NOTE this isn't currently being used
 def _unixformat(unixtime,Date=False):
     """Turns Unix Time into something readable
 
