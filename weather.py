@@ -47,7 +47,7 @@ class WeatherPlugin(object):
 
     @command
     def w(self, mask, target, args):
-        """Gives basic weather information for
+        """Gives basic weather information for the user
             %%w [<location>]...
         """
         if target == self.bot.nick:
@@ -69,13 +69,15 @@ class WeatherPlugin(object):
         if not local and not location:
             response = "Sorry, I don't remember where you are"
             return response
-        elif local: # if args are provided remember them
-            geo = yield from self.get_geo(mask.nick, args)
-            if not geo:
-                response = "Sorry, I could't find that place"
+
+        if local:
+            try:
+                geo = yield from self.get_geo(mask.nick, args)
+            except ConnectionError as status:
+                response = "Sorry, I could't find that place - " + str(status)
                 return response
-            else:
-                self.set_local(mask.nick, geo)
+            self.set_local(mask.nick, geo) # if args are provided remember them
+            location = yield from self.get_local(mask.nick)
 
         try:
             self.ds = DarkSky(location[:2])
@@ -89,14 +91,12 @@ class WeatherPlugin(object):
 
         summary = self.ds.forecast.currently.summary
         temp = self.ds.forecast.currently.temperature
-
-
         if self.ds.forecast.flags.units == "us":
             deg = "F"
         else:
             deg = "C"
         response = "{0} - {1}, {2}\u00B0{3}".format(
-            place, summary, temperature, deg)
+            location[2], summary, temperature, deg)
         return response
 
 # Set the api key using the system's environmental variables.
@@ -121,11 +121,9 @@ class WeatherPlugin(object):
         location = geo.latlng
 
         if (geo.city, geo.state):
-            place = "{0}, {1}".format(p.city, p.state)
+            location.append("{0}, {1}".format(p.city, p.state))
         else:
-            place = geo.country
-
-        location.append(place)
+            location.append(geo.country)
 
         self.log.info("Storing local {0} for {1}".format(location, mask.nick))
         self.bot.get_user(mask.nick).set_setting('latlong', location)
@@ -140,7 +138,6 @@ class WeatherPlugin(object):
         user = self.bot.get_user(nick)
         result = yield from user.get_setting('latlong', nick)
         return result
-
 
 def _unixformat(unixtime,Date=False):
     """Turns Unix Time into something readable
