@@ -47,8 +47,7 @@ class WeatherPlugin(object):
 
     @command
     def w(self, mask, target, args):
-        """Gives the time the sun will rise
-
+        """Gives basic weather information for
             %%w [<location>]...
         """
         if target == self.bot.nick:
@@ -61,26 +60,25 @@ class WeatherPlugin(object):
             self.bot.privmsg(target, response)
         asyncio.async(wrap())
 
-# TODO
-# Still not correctly working when no args are given.
     @asyncio.coroutine
     def w_response(self, mask, args):
         """Returns appropriate reponse to w request"""
-        local = args['<location>']
-        location = yield from self.get_local(mask.nick)
+        local = args['<location>'] #searchable string
+        location = yield from self.get_local(mask.nick) #dict of lat,long
 
-        if not local and location is None:
-            response = "I don't remember where you are"
+        if not local and not location:
+            response = "Sorry, I don't remember where you are"
             return response
-        elif local:  # if both values exist, args take priority
-            self.set_local(mask.nick, args)
-            g = geocoder.google(' '.join(local))
-            location = g.latlng
-            if not location:
-                response = "Sorry, I can't seem to find that place."
+        elif local: # if args are provided remember them
+            geo = yield from self.get_geo(mask.nick, args)
+            if not geo:
+                response = "Sorry, I could't find that place"
                 return response
+            else:
+                self.set_local(mask.nick, geo)
+
         try:
-            self.ds = DarkSky(location)
+            self.ds = DarkSky(location[:2])
         except (requests.exceptions.Timeout,
                 requests.exceptions.TooManyRedirects,
                 requests.exceptions.RequestException,
@@ -92,12 +90,6 @@ class WeatherPlugin(object):
         summary = self.ds.forecast.currently.summary
         temp = self.ds.forecast.currently.temperature
 
-# maybe it would be nice if the city name was stored too?
-        p = geocoder.google(str(location), method="reverse")
-        if (p.city, p.state):
-            place = "{0}, {1}".format(p.city, p.state)
-        else:
-            place = p.country
 
         if self.ds.forecast.flags.units == "us":
             deg = "F"
@@ -109,19 +101,40 @@ class WeatherPlugin(object):
 
 # Set the api key using the system's environmental variables.
 # $ export GOOGLE_API_KEY=<Secret API Key>
-    def set_local(self, mask, args):
-        """Sets the longitude and latitude of the user
-        """
+    @asyncio.coroutine
+    def get_geo(self, mask, args):
+    """Gets the geographical information from Google
+    """
         location = ' '.join(args['<location>'])
-        g = geocoder.google(location)
+        geo = geocoder.google(location)
 
-        self.log.info("Storing location %s for %s", location, mask.nick)
-        self.bot.get_user(mask.nick).set_setting('latlong', g.latlng)
-        self.bot.privmsg(target, "Got it.")
+        if geo.status == "OK":
+            return geo
+        else:
+            self.log.info("Google Geocode error for {0} - {1}".format(mask.nick, geo.status))
+            raise ConnectionError(geo.status)
+
+    def set_local(self, mask, geo):
+        """Sets the location of the user as a list of
+        [longitude, latitude,"city"]
+        """
+        location = geo.latlng
+
+        if (geo.city, geo.state):
+            place = "{0}, {1}".format(p.city, p.state)
+        else:
+            place = geo.country
+
+        location.append(place)
+
+        self.log.info("Storing local {0} for {1}".format(location, mask.nick))
+        self.bot.get_user(mask.nick).set_setting('latlong', location)
+        #self.bot.privmsg(target, "Got it.")
 
     @asyncio.coroutine
     def get_local(self, nick):
-        """Gets the location associated with a user from the database.
+        """Gets the location, in the form of latitude and longitude,
+        associated with a user from the database.
         If user is not in the database, returns None.
         """
         user = self.bot.get_user(nick)
@@ -129,7 +142,7 @@ class WeatherPlugin(object):
         return result
 
 
-def _unixformat(unixtime,d=False):
+def _unixformat(unixtime,Date=False):
     """Turns Unix Time into something readable
 
     "9:34 PM (08/24/16)"
@@ -139,7 +152,7 @@ def _unixformat(unixtime,d=False):
 
     date = datetime.datetime.fromtimestamp(
         int(unixtime)).strftime(" (%m/%d/%y)")
-    if d:
+    if Date:
         return time + date
     else:
         return time
