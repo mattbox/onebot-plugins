@@ -9,13 +9,13 @@ Basic plugin for displaying the weather
  “Powered by Dark Sky” - https://darksky.net/poweredby/.
 """
 import asyncio
-import datetime
 import re
 
 import geocoder
 import requests
 from darksky import DarkSky
-from time import strftime
+from datetime import datetime
+from pytz import timezone
 
 import irc3
 from irc3.plugins.command import command
@@ -27,6 +27,7 @@ class WeatherPlugin(object):
 
     * Weather Plugin
     """
+
     requires = [
         'irc3.plugins.command',
         'onebot.plugins.users'
@@ -46,7 +47,7 @@ class WeatherPlugin(object):
 
     @command
     def w(self, mask, target, args):
-        """Gives basic weather information for the user
+        """Gives some basic current weather information for the user
             %%w [<location>]...
         """
         if target == self.bot.nick:
@@ -62,28 +63,32 @@ class WeatherPlugin(object):
     @asyncio.coroutine
     def w_response(self, mask, args):
         """Returns appropriate reponse to w request"""
-        local = args['<location>'] #searchable string
+        local = args['<location>']
         location = yield from self.get_local(mask.nick)
 
         if not local and not location:
             response = "Sorry, I don't remember where you are"
             return response
-        elif local:
+
+        if local:
             try:
-                location = yield from self.get_geo(mask.nick, args)
+                geo = yield from self.get_geo(mask.nick, args)
             except ConnectionError as status:
                 response = "Sorry, I could't find that place - " + str(status)
                 return response
-            self.set_local(mask.nick, geo) # remember args when given
+            # if args are provided remember them
+            self.set_local(mask.nick, geo)
+            location = yield from self.get_local(mask.nick)
 
         try:
-            self.ds = DarkSky(location[:2])
+            self.ds = DarkSky(location[:2], key=self.api_key)
         except (requests.exceptions.Timeout,
                 requests.exceptions.TooManyRedirects,
                 requests.exceptions.RequestException,
                 requests.exceptions.HTTPError,
-                ValueError, KeyError)as errmsg:
-            return str(errmsg)
+                ValueError, KeyError)as e:
+            errmsg = str(e)
+            return errmsg
 
         summary = self.ds.forecast.currently.summary
         temp = self.ds.forecast.currently.temperature
@@ -99,53 +104,58 @@ class WeatherPlugin(object):
 # $ export GOOGLE_API_KEY=<Secret API Key>
     @asyncio.coroutine
     def get_geo(self, mask, args):
-    """Gets the geographical information from Google Geocoding,
-    returns [latitude,longitude,"city"]
+    """Gets geocoding information from Google
+
+        returns Geocoder class, raises ConnectionError on bad results
     """
-        local = ' '.join(args['<location>'])
-        geo = geocoder.google(local)
+        location = ' '.join(args['<location>'])
+        geo = geocoder.google(location)
 
         if geo.status == "OK":
-            location = geo.latlng
-            if (geo.city, geo.state):
-                location.append("{0}, {1}".format(geo.city, geo.state))
-            else:
-                location.append(geo.country)
-            return location
+            return geo
         else:
-            self.log.info("Geocode error for {0} - {1}".format(mask.nick,
-                geo.status))
+            self.log.info(
+                "Google Geocode error for {0} - {1}".format(mask.nick, geo.status))
             raise ConnectionError(geo.status)
 
-    def set_local(self, mask, location):
-        """Stores the location of the user as a list of
-        [longitude, latitude, "city name"]
+    def set_local(self, mask, geo):
+        """Sets the location of the user a list of [longitude, latitude,"city"]
         """
-        self.log.info("Storing location {0} for {1}".format(location, mask.nick))
-        self.bot.get_user(mask.nick).set_setting('location', location)
+        location = geo.latlng
+
+        if (geo.city, geo.state):
+            location.append("{0}, {1}".format(p.city, p.state))
+        else:
+            location.append(geo.country)
+
+        self.log.info("Storing local {0} for {1}".format(location, mask.nick))
+        self.bot.get_user(mask.nick).set_setting('userloc', location)
         #self.bot.privmsg(target, "Got it.")
 
     @asyncio.coroutine
     def get_local(self, nick):
-        """Gets the location, associated with a user from the database.
+        """Gets the location, in the form of latitude and longitude,
+        associated with a user from the database.
         If user is not in the database, returns None.
         """
         user = self.bot.get_user(nick)
-        result = yield from user.get_setting('location', nick)
+        result = yield from user.get_setting('userloc', nick)
         return result
 
-#NOTE this isn't currently being used
-def _unixformat(unixtime,Date=False):
-    """Turns Unix Time into something readable
+# NOTE not currently being used
 
-    "9:34 PM (08/24/16)"
+
+def _unixformat(uxtime, tz, Date=False):
+    """Handles time zone conversions
+        and converts unix time into readable format
+
+        example: "9:34 PM GMT (08/24/16)"
     """
-    time = datetime.datetime.fromtimestamp(
-        int(unixtime)).strftime("%I:%M %p")
+    tzlocal = timezone(tz)
 
-    date = datetime.datetime.fromtimestamp(
-        int(unixtime)).strftime(" (%m/%d/%y)")
+    fmt = "%I:%M %p %Z"
     if Date:
-        return time + date
-    else:
-        return time
+        fmt += " (%m/%d/%y)"
+
+    time = datetime.fromtimestamp(int(uxtime), tz=tzlocal)
+    return time.strftime(fmt)
