@@ -69,19 +69,18 @@ class WeatherPlugin(object):
         if not local and not location:
             response = "Sorry, I don't remember where you are"
             return response
-
-        if local:
+        f local:
             try:
-                geo = yield from self.get_geo(mask.nick, args)
+                location = yield from self.get_geo(mask.nick, args)
             except ConnectionError as status:
                 response = "Sorry, I could't find that place - " + str(status)
                 return response
             # if args are provided remember them
-            self.set_local(mask.nick, geo)
-            location = yield from self.get_local(mask.nick)
+            self.set_local(mask.nick, location)
 
+        latlng, place = location
         try:
-            self.ds = DarkSky(location[:2], key=self.api_key)
+            self.ds = DarkSky(latlng, key=self.api_key)
         except (requests.exceptions.Timeout,
                 requests.exceptions.TooManyRedirects,
                 requests.exceptions.RequestException,
@@ -92,12 +91,10 @@ class WeatherPlugin(object):
 
         summary = self.ds.forecast.currently.summary
         temp = self.ds.forecast.currently.temperature
-        if self.ds.forecast.flags.units == "us":
-            deg = "F"
-        else:
-            deg = "C"
+        deg = "F" if self.ds.forecast.flags.units == "us" else deg = "C"
+
         response = "{0} - {1}, {2}\u00B0{3}".format(
-            location[2], summary, temperature, deg)
+            place, summary, temperature, deg)
         return response
 
 # Set the api key using the system's environmental variables.
@@ -106,31 +103,27 @@ class WeatherPlugin(object):
     def get_geo(self, mask, args):
     """Gets geocoding information from Google
 
-        returns Geocoder class, raises ConnectionError on bad results
+        returns Geocoder class and "city", raises ConnectionError on bad results
     """
         location = ' '.join(args['<location>'])
         geo = geocoder.google(location)
 
         if geo.status == "OK":
-            return geo
+            if (geo.city, geo.state):
+                place = "{0}, {1}".format(p.city, p.state)
+            else:
+                place = geo.country
+            return (geo.latlng, place)
         else:
             self.log.info(
                 "Google Geocode error for {0} - {1}".format(mask.nick, geo.status))
             raise ConnectionError(geo.status)
 
-    def set_local(self, mask, geo):
-        """Sets the location of the user a list of [longitude, latitude,"city"]
+    def set_local(self, mask, location):
+        """Sets the location of the user ([longitude, latitude], "city")
         """
-        location = geo.latlng
-
-        if (geo.city, geo.state):
-            location.append("{0}, {1}".format(p.city, p.state))
-        else:
-            location.append(geo.country)
-
         self.log.info("Storing local {0} for {1}".format(location, mask.nick))
         self.bot.get_user(mask.nick).set_setting('userloc', location)
-        #self.bot.privmsg(target, "Got it.")
 
     @asyncio.coroutine
     def get_local(self, nick):
@@ -152,10 +145,8 @@ def _unixformat(uxtime, tz, Date=False):
         example: "9:34 PM GMT (08/24/16)"
     """
     tzlocal = timezone(tz)
-
     fmt = "%I:%M %p %Z"
     if Date:
         fmt += " (%m/%d/%y)"
-
     time = datetime.fromtimestamp(int(uxtime), tz=tzlocal)
     return time.strftime(fmt)
