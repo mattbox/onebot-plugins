@@ -134,6 +134,14 @@ class WeatherPlugin(object):
         result = yield from user.get_setting('userloc', nick)
         return result
 
+    @classmethod
+    def reload(cls, old):
+        """this method should return a ready to use plugin instance.
+        cls is the newly reloaded class. old is the old instance.
+        """
+        return cls(old.bot)
+
+
 # NOTE not currently being used
 
 

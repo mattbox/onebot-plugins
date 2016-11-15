@@ -26,94 +26,96 @@ class EightBallPlugin(object):
     * roll dice
     """
 
+    def __init__(self, bot):
+        self.bot = bot
 
-def __init__(self, bot):
-    self.bot = bot
+    @command
+    def eightball(self, mask, target, args):
+        """Answers all you're questions
 
+            %%8ball [<question>]...
+        """
+        answers = [
+            'It is certain',
+            'It is decidedly so',
+            'Without a doubt',
+            'Yes, definitely',
+            'You may rely on it',
+            'As I see it, yes',
+            'Most likely',
+            'Outlook good',
+            'lol',
+            'Signs point to yes',
+            'Reply hazy try again',
+            'Ask again later',
+            'Better not tell you now',
+            'Cannot predict now',
+            'Concentrate and ask again',
+            'Don\'t count on it',
+            'My reply is no',
+            'My sources say no',
+            'Outlook not so good',
+            'Very doubtful'
+        ]
 
-@command
-def eightball(self, mask, target, args):
-    """Answers all you're questions
+        response = random.choice(answers)
+        self.bot.privmsg(target, reponse)
 
-        %%8ball [<question>]...
-    """
-    answers = [
-        'It is certain',
-        'It is decidedly so',
-        'Without a doubt',
-        'Yes, definitely',
-        'You may rely on it',
-        'As I see it, yes',
-        'Most likely',
-        'Outlook good',
-        'lol',
-        'Signs point to yes',
-        'Reply hazy try again',
-        'Ask again later',
-        'Better not tell you now',
-        'Cannot predict now',
-        'Concentrate and ask again',
-        'Don\'t count on it',
-        'My reply is no',
-        'My sources say no',
-        'Outlook not so good',
-        'Very doubtful'
-    ]
+    @command
+    def choose(self, mask, target, args):
+        """Chooses a choice
 
-    response = random.choice(answers)
-    self.bot.privmsg(target, reponse)
+            %%choose <question>...
+        """
+        question = ' '.join(args['<question>'])
 
+        if re.search('(?:\bor\b)', question):
+            choices = re.findall('(?:\bor\b)', question)
+        elif re.search('([^;,]+)', question):
+            choices = re.findall('([^;,]+)', question)
+        else:
+            choices = re.findall('(\w+)', question)
 
-@command
-def choose(self, mask, target, args):
-    """Chooses a choice
+        decision = random.choice(choices)
+        self.bot.privmsg(target, decision)
 
-        %%choose <question>...
-    """
-    question = ' '.join(args['<question>'])
+    @command
+    def roll(self, mask, target, args):
+        """Rolls a dice as the user sees fit, follows D&D dice notation
 
-    if re.search('(?:\bor\b)', question):
-        choices = re.findall('(?:\bor\b)', question)
-    elif re.search('([^;,]+)', question):
-        choices = re.findall('([^;,]+)', question)
-    else:
-        choices = re.findall('(\w+)', question)
+            %%roll [<dice>]
+        """
+        if target == self.bot.nick
+            target = mask.nick
+        reponse = self._roll(args)
+        self.bot.privmsg(target, response)
 
-    decision = random.choice(choices)
-    self.bot.privmsg(target, decision)
+    def _roll(self, args):
+        """Roll function"""
+        roll = args['<dice>']
+        dice = re.findall('(^\d)d(\d+$)', roll)
 
-
-@command
-def roll(self, mask, target, args):
-    """Rolls a dice as the user sees fit, follows D&D dice notation
-
-        %%roll [<dice>]
-    """
-    if target == self.bot.nick
-        target = mask.nick
-    reponse = self._roll(args)
-    self.bot.privmsg(target, response)
-
-
-def _roll(self, args):
-    """Roll function"""
-    roll = args['<dice>']
-    dice = re.findall('(^\d)d(\d+$)', roll)
-
-    if not roll:
-        # default is 1d6
-        num = 1
-        sides = 6
-    elif not dice:
-        reponse = "That's not a valid roll"
-        return response
-    else:
-        num = int(dice[0][0])
-        sides = int(dice[0][1])
-        if (num or sides) > 101:
-            response = "That's too much"
+        if not roll:
+            # defaults to 1d6
+            num = 1
+            sides = 6
+        elif not dice:
+            reponse = "That's not a valid roll"
             return response
-    total = 0
-    for i in range(num):
-        total += random.randrange(sides + 1)
-    return str(total)
+        else:
+            num = int(dice[0][0])
+            sides = int(dice[0][1])
+            if (num or sides) > 101:
+                response = "That's too much"
+                return response
+        total = 0
+        for i in range(num):
+            total += random.randrange(sides + 1)
+        return str(total)
+
+    @classmethod
+    def reload(cls, old):
+        """this method should return a ready to use plugin instance.
+        cls is the newly reloaded class. old is the old instance.
+        """
+        return cls(old.bot)
