@@ -9,7 +9,6 @@ Basic plugin for displaying the weather
  “Powered by Dark Sky” - https://darksky.net/poweredby/.
 """
 import asyncio
-import re
 
 import geocoder
 import requests
