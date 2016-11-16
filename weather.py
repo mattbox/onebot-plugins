@@ -46,8 +46,9 @@ class WeatherPlugin(object):
 
     @command
     def w(self, mask, target, args):
-        """Gives some basic current weather information for the user
-            %%w [<location>]...
+        """
+        Weather - Reports the current weather for a given location.
+        %%w [<location>]...
         """
         if target == self.bot.nick:
             target = mask.nick
@@ -61,68 +62,65 @@ class WeatherPlugin(object):
 
     @asyncio.coroutine
     def w_response(self, mask, args):
-        """Returns appropriate reponse to w request"""
-        local = args['<location>']
-        location = yield from self.get_local(mask.nick)
-
-        if not local and not location:
-            response = "Sorry, I don't remember where you are"
-            return response
-        f local:
+        """Returns appropriate reponse to .w request"""
+        local = " ".join(args['<location>'] or [])
+        if not local:
+            location = yield from self.get_local(mask.nick)
+            if not location:
+                response = "Sorry, I don't remember where you are"
+                return response
+        else:
             try:
-                location = yield from self.get_geo(mask.nick, args)
+                location = yield from self.get_geo(mask.nick, local)
             except ConnectionError as status:
                 response = "Sorry, I could't find that place - " + str(status)
                 return response
             # if args are provided remember them
             self.set_local(mask.nick, location)
 
-        latlng, place = location
+        latlng = location[0]
+        place = location[1]
         try:
             self.ds = DarkSky(latlng, key=self.api_key)
         except (requests.exceptions.Timeout,
                 requests.exceptions.TooManyRedirects,
                 requests.exceptions.RequestException,
                 requests.exceptions.HTTPError,
-                ValueError, KeyError)as e:
+                ValueError, KeyError) as e:
             errmsg = str(e)
             return errmsg
 
-        summary = self.ds.forecast.currently.summary
-        temp = self.ds.forecast.currently.temperature
-        deg = "F" if self.ds.forecast.flags.units == "us" else deg = "C"
-
+        current = self.ds.forecast.currently
+        deg = "F" if self.ds.forecast.flags.units == "us" else "C"
         response = "{0} - {1}, {2}\u00B0{3}".format(
-            place, summary, temperature, deg)
+            place, current.summary, current.temperature, deg)
         return response
 
 # Set the api key using the system's environmental variables.
 # $ export GOOGLE_API_KEY=<Secret API Key>
     @asyncio.coroutine
-    def get_geo(self, mask, args):
-    """Gets geocoding information from Google
-
-        returns Geocoder class and "city", raises ConnectionError on bad results
-    """
+    def get_geo(self, nick, args):
+        """Gets geocoding information from Google returns ['lat','lng']
+            and "city", raises ConnectionError on bad results
+        """
         location = ' '.join(args['<location>'])
         geo = geocoder.google(location)
 
         if geo.status == "OK":
             if (geo.city, geo.state):
-                place = "{0}, {1}".format(p.city, p.state)
+                place = "{0}, {1}".format(geo.city, geo.state)
             else:
                 place = geo.country
             return (geo.latlng, place)
         else:
-            self.log.info(
-                "Google Geocode error for {0} - {1}".format(mask.nick, geo.status))
+            self.log.info("Geocode error: {0} - {1}".format(nick, geo.status))
             raise ConnectionError(geo.status)
 
-    def set_local(self, mask, location):
+    def set_local(self, nick, location):
         """Sets the location of the user ([longitude, latitude], "city")
         """
-        self.log.info("Storing local {0} for {1}".format(location, mask.nick))
-        self.bot.get_user(mask.nick).set_setting('userloc', location)
+        self.log.info("Storing local {0} for {1}".format(location, nick))
+        self.bot.get_user(nick).set_setting('userloc', location)
 
     @asyncio.coroutine
     def get_local(self, nick):
@@ -131,14 +129,14 @@ class WeatherPlugin(object):
         If user is not in the database, returns None.
         """
         user = self.bot.get_user(nick)
-        result = yield from user.get_setting('userloc', nick)
-        return result
+        if user:
+            result = yield from user.get_setting('userloc', nick)
+            return result
+        else:
+            return None
 
     @classmethod
     def reload(cls, old):
-        """this method should return a ready to use plugin instance.
-        cls is the newly reloaded class. old is the old instance.
-        """
         return cls(old.bot)
 
 

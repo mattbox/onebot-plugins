@@ -29,11 +29,12 @@ class EightBallPlugin(object):
     def __init__(self, bot):
         self.bot = bot
 
+    #FIXME
     @command
-    def eightball(self, mask, target, args):
-        """Answers all you're questions
-
-            %%8ball [<question>]...
+    def ball(self, mask, target, args):
+        """
+        8ball - Answers all you're questions, with 100%\ accuracy.
+        %%8ball [<question>]...
         """
         answers = [
             'It is certain',
@@ -59,13 +60,14 @@ class EightBallPlugin(object):
         ]
 
         response = random.choice(answers)
-        self.bot.privmsg(target, reponse)
+        self.bot.privmsg(target, response)
 
+    #FIXME
     @command
     def choose(self, mask, target, args):
-        """Chooses a choice
-
-            %%choose <question>...
+        """
+        Choose - Makes a decision for you.
+        %%choose <question>...
         """
         question = ' '.join(args['<question>'])
 
@@ -81,18 +83,18 @@ class EightBallPlugin(object):
 
     @command
     def roll(self, mask, target, args):
-        """Rolls a dice as the user sees fit, follows D&D dice notation
-
-            %%roll [<dice>]
         """
-        if target == self.bot.nick
+        Roll - Rolls a dice, follows D&D dice notation (e.g. 1d20)
+        %%roll [<dice>]
+        """
+        if target == self.bot.nick:
             target = mask.nick
-        reponse = self._roll(args)
+        response = self._roll(args)
         self.bot.privmsg(target, response)
 
     def _roll(self, args):
-        """Roll function"""
-        roll = args['<dice>']
+        """returns proper roll to roll request"""
+        roll = " ".join(args['<dice>'] or [])
         dice = re.findall('(^\d)d(\d+$)', roll)
 
         if not roll:
@@ -100,7 +102,7 @@ class EightBallPlugin(object):
             num = 1
             sides = 6
         elif not dice:
-            reponse = "That's not a valid roll"
+            response = "That's not a valid roll"
             return response
         else:
             num = int(dice[0][0])
@@ -115,7 +117,4 @@ class EightBallPlugin(object):
 
     @classmethod
     def reload(cls, old):
-        """this method should return a ready to use plugin instance.
-        cls is the newly reloaded class. old is the old instance.
-        """
         return cls(old.bot)
