@@ -63,7 +63,7 @@ class WeatherPlugin(object):
     @asyncio.coroutine
     def w_response(self, mask, args):
         """Returns appropriate reponse to .w request"""
-        local = " ".join(args['<location>'] or [])
+        local = " ".join(args['<location>'])
         if not local:
             location = yield from self.get_local(mask.nick)
             if not location:
@@ -72,14 +72,13 @@ class WeatherPlugin(object):
         else:
             try:
                 location = yield from self.get_geo(mask.nick, local)
-            except ConnectionError as status:
-                response = "Sorry, I could't find that place - " + str(status)
+            except ConnectionError:
+                response = "Sorry, I could't find that place"
                 return response
             # if args are provided remember them
             self.set_local(mask.nick, location)
 
-        latlng = location[0]
-        place = location[1]
+        latlng, place = location
         try:
             self.ds = DarkSky(latlng, key=self.api_key)
         except (requests.exceptions.Timeout,
@@ -103,9 +102,8 @@ class WeatherPlugin(object):
         """Gets geocoding information from Google returns ['lat','lng']
             and "city", raises ConnectionError on bad results
         """
-        location = ' '.join(args['<location>'])
+        location = " ".join(args['<location>'])
         geo = geocoder.google(location)
-
         if geo.status == "OK":
             if (geo.city, geo.state):
                 place = "{0}, {1}".format(geo.city, geo.state)
@@ -114,13 +112,7 @@ class WeatherPlugin(object):
             return (geo.latlng, place)
         else:
             self.log.info("Geocode error: {0} - {1}".format(nick, geo.status))
-            raise ConnectionError(geo.status)
-
-    def set_local(self, nick, location):
-        """Sets the location of the user ([longitude, latitude], "city")
-        """
-        self.log.info("Storing local {0} for {1}".format(location, nick))
-        self.bot.get_user(nick).set_setting('userloc', location)
+            raise ConnectionError
 
     @asyncio.coroutine
     def get_local(self, nick):
@@ -129,21 +121,22 @@ class WeatherPlugin(object):
         If user is not in the database, returns None.
         """
         user = self.bot.get_user(nick)
-        if user:
-            result = yield from user.get_setting('userloc', nick)
-            return result
-        else:
-            return None
+        result = yield from user.get_setting('userloc', nick)
+        return result
+
+    def set_local(self, nick, location):
+        """Sets the location of the user ([longitude, latitude], "city")
+        """
+        self.log.info("Storing local {0} for {1}".format(location, nick))
+        self.bot.get_user(nick).set_setting('userloc', location)
 
     @classmethod
     def reload(cls, old):
         return cls(old.bot)
 
 
-# NOTE not currently being used
-
-
 def _unixformat(uxtime, tz, Date=False):
+    # NOTE not currently being used
     """Handles time zone conversions
         and converts unix time into readable format
 

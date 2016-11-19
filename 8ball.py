@@ -18,7 +18,7 @@ from irc3.plugins.command import command
 
 
 @irc3.plugin
-class EightBallPlugin(object):
+class RandomPlugin(object):
     """Plugin to provide:
 
     * 8 Ball
@@ -29,9 +29,8 @@ class EightBallPlugin(object):
     def __init__(self, bot):
         self.bot = bot
 
-    #FIXME
-    @command
-    def ball(self, mask, target, args):
+    @command(name='8ball')
+    def eight_ball(self, mask, target, args):
         """
         8ball - Answers all you're questions, with 100%\ accuracy.
         %%8ball [<question>]...
