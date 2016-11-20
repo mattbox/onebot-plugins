@@ -62,16 +62,19 @@ class WeatherPlugin(object):
 
     @asyncio.coroutine
     def w_response(self, mask, args):
-        """Returns appropriate reponse to .w request"""
+        """
+        Returns appropriate reponse to .w request
+        example: <bot> New York, NY - Clear, 75.4°F
+        """
         local = " ".join(args['<location>'])
         if not local:
             location = yield from self.get_local(mask.nick)
-            if not location:
+            if location == mask.nick:
                 response = "Sorry, I don't remember where you are"
                 return response
         else:
             try:
-                location = yield from self.get_geo(mask.nick, local)
+                location = yield from self.get_geo(mask.nick, args)
             except ConnectionError:
                 response = "Sorry, I could't find that place"
                 return response
@@ -118,8 +121,8 @@ class WeatherPlugin(object):
     def get_local(self, nick):
         """Gets the location, in the form of latitude and longitude,
         associated with a user from the database.
-        If user is not in the database, returns None.
         """
+#XXX if there's no setting database setting for the user it will return the nick?
         user = self.bot.get_user(nick)
         result = yield from user.get_setting('userloc', nick)
         return result

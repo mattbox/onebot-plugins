@@ -19,6 +19,7 @@ class RandPlugin(object):
 
         if target == self.bot.nick:
             target = mask.nick
-        
+
         response = 'hi, {}'.format(mask.nick)
+        #TODO Add a wait time so it's not so garing
         self.bot.privmsg(target, reponse)
