@@ -93,10 +93,13 @@ class WeatherPlugin(object):
             errmsg = str(e)
             return errmsg
 
+
         current = self.ds.forecast.currently
+        time = _unixformat(current.time, self.ds.forecast.timezone)
         deg = "F" if self.ds.forecast.flags.units == "us" else "C"
-        response = "{0} - {1}, {2}\u00B0{3}".format(
-            place, current.summary, current.temperature, deg)
+
+        response = "\x02{0} \x0F({4}) - {1}, {2}\u00B0{3}".format(
+            place, current.summary, current.temperature, deg, time)
         return response
 
 # Set the api key using the system's environmental variables.
@@ -129,7 +132,8 @@ class WeatherPlugin(object):
         return result
 
     def set_local(self, nick, location):
-        """Sets the location of the user ([longitude, latitude], "city")
+        """
+        Sets the location of the user ([longitude, latitude], "city")
         """
         self.log.info("Storing local {0} for {1}".format(location, nick))
         self.bot.get_user(nick).set_setting('userloc', location)
@@ -141,13 +145,14 @@ class WeatherPlugin(object):
 
 def _unixformat(uxtime, tz, Date=False):
     # NOTE not currently being used
-    """Handles time zone conversions
-        and converts unix time into readable format
+    """
+    Handles time zone conversions
+    and converts unix time into readable format
 
-        example: "9:34 PM GMT (08/24/16)"
+    example: "9:34 PM GMT (08/24/16)"
     """
     tzlocal = timezone(tz)
-    fmt = "%I:%M %p %Z"
+    fmt = "%I:%M%p %Z"
     if Date:
         fmt += " (%m/%d/%y)"
     time = datetime.fromtimestamp(int(uxtime), tz=tzlocal)
