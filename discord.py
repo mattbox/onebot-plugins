@@ -83,7 +83,7 @@ class DiscordPlugin(object):
 identify = {
         "op": 2,
         "d": {
-            "token": "MjI4OTI5MTcxNjk3NTY1Njk2.Cz-_pw.47nwJ54RGyHZo1dHzR1nKgv99LI",
+            "token":{0},
             "properties": {
                 "$os": "linux" ,
                 "$browser": "solbot.py",
