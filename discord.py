@@ -5,7 +5,6 @@
 =================================================
 
 Basic plugin for discord
-
 Very quick and dirty
 
 """
@@ -20,6 +19,7 @@ from attrdict import AttrDict
 from collections import defaultdict
 import irc3
 from irc3.plugins.command import command
+
 
 @irc3.plugin
 class DiscordPlugin(object):
@@ -39,7 +39,7 @@ class DiscordPlugin(object):
         self.bot = bot
         self.log = bot.log.getChild(__name__)
         self.config = bot.config.get(__name__, {})
-        #Discord bot token
+        # Discord bot token
         try:
             self.token = self.config['token']
         except:
@@ -71,9 +71,11 @@ class DiscordPlugin(object):
             discord_id = self.set_ID(usr)
             irc_users[discord_id] = usr
 
-        #result = [irc_users[key]: gamer[key] for key in gamer if key in irc_users]
+        # result = [irc_users[key]: gamer[key] for key in gamer if key in
+        # irc_users]
 
-        result = [(gamer[key], irc_users[key]) for key in gamer if key in irc_users]
+        result = [(gamer[key], irc_users[key])
+                  for key in gamer if key in irc_users]
 
         d = defaultdict(list)
         for key, value in result:
@@ -83,7 +85,8 @@ class DiscordPlugin(object):
         response = ''
         for game, player in results:
             if len(player) > 1:
-                response += '{0} are playing {1}. '.format(', '.join(player), game)
+                response += '{0} are playing {1}. '.format(
+                    ', '.join(player), game)
             else:
                 response += '{0} is playing {1}. '.format(player[0], game)
 
@@ -99,7 +102,7 @@ class DiscordPlugin(object):
         "d": {
             "token": self.token,
             "properties": {
-                "$os": "linux" ,
+                "$os": "linux",
                 "$browser": "solbot.py",
                 "$device": "solbot.py",
                 "$referrer": "",
@@ -109,7 +112,7 @@ class DiscordPlugin(object):
             "large_threshold": 50
         }
     }
-    #FIXME Not the correct way
+    # FIXME Not the correct way
     ws = create_connection(url)
     hello = ws.recv()               # OP 10 Hello payload
     ws.send(json.dumps(identify))   # OP 2 Identify
