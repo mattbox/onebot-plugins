@@ -93,7 +93,6 @@ class WeatherPlugin(object):
             errmsg = str(e)
             return errmsg
 
-
         current = self.ds.forecast.currently
         time = _unixformat(current.time, self.ds.forecast.timezone)
         deg = "F" if self.ds.forecast.flags.units == "us" else "C"
@@ -143,17 +142,13 @@ class WeatherPlugin(object):
         return cls(old.bot)
 
 
-def _unixformat(uxtime, tz, Date=False):
-    # NOTE not currently being used
+def _unixformat(uxtime, tz):
     """
     Handles time zone conversions
     and converts unix time into readable format
 
-    example: "9:34 PM GMT (08/24/16)"
+    example: "9:34PM GMT"
     """
     tzlocal = timezone(tz)
-    fmt = "%I:%M%p %Z"
-    if Date:
-        fmt += " (%m/%d/%y)"
     time = datetime.fromtimestamp(int(uxtime), tz=tzlocal)
-    return time.strftime(fmt)
+    return "{:%I:%M%p %Z}".format(time)
