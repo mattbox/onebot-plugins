@@ -64,23 +64,21 @@ class DiscordPlugin(object):
         """
         Returns the appropriate response to .play request
         """
-        gamer = yield from self.discord_socket()
+        wsr = yield from self.discord_socket()
+        gamer = _parse_respose(wsr)
 
-        irc_users = {}
-        for usr in self.bot.channels[target]:
-            discord_id = self.set_ID(usr)
-            irc_users[discord_id] = usr
+        irc = {}
+        for user in self.bot.channels[target]:
+            discord_id = yield from self.get_ID(user)
+            irc[discord_id] = user
 
-        # result = [irc_users[key]: gamer[key] for key in gamer if key in
-        # irc_users]
-
-        result = [(gamer[key], irc_users[key])
-                  for key in gamer if key in irc_users]
+        result = [(gamer[key], irc[key]) for key in gamer if key in irc]
 
         d = defaultdict(list)
         for key, value in result:
             d[key].append(value)
-        results = sorted(d.items())
+
+        results = sorted(d.items())  # [('game',[usr1, usr2]),('game2',[usr3)]
 
         response = ''
         for game, player in results:
@@ -90,45 +88,41 @@ class DiscordPlugin(object):
             else:
                 response += '{0} is playing {1}. '.format(player[0], game)
 
+        return response
+
     @asyncio.coroutine
     def discord_socket(self):
+        """
+        Handles the websocket with discord's gateway server, returns appropriate response as dictonary
+        """
+        r = requests.get('https://discordapp.com/api/gateway')
+        baseurl = r.json()['url']
+        url = baseurl + '/?encoding=json&v=5'
 
-    r = requests.get('https://discordapp.com/api/gateway')
-    baseurl = r.json()['url']
-    url = baseurl + '/?encoding=json&v=5'
-
-    identify = {
-        "op": 2,
-        "d": {
-            "token": self.token,
-            "properties": {
-                "$os": "linux",
-                "$browser": "solbot.py",
-                "$device": "solbot.py",
-                "$referrer": "",
-                "$referring_domain": ""
-            },
-            "compress": False,
-            "large_threshold": 50
+        identify = {
+            "op": 2,
+            "d": {
+                "token": self.token,
+                "properties": {
+                    "$os": "linux",
+                    "$browser": "solbot.py",
+                    "$device": "solbot.py",
+                    "$referrer": "",
+                    "$referring_domain": ""
+                },
+                "compress": False,
+                "large_threshold": 50
+            }
         }
-    }
-    # FIXME Not the correct way
-    ws = create_connection(url)
-    hello = ws.recv()               # OP 10 Hello payload
-    ws.send(json.dumps(identify))   # OP 2 Identify
-    ready = ws.recv()               # Ready payload
-    response = ws.recv()            # Dispatch payload
-    ws.close()
+        # FIXME Not the correct way
+        ws = create_connection(url)
+        hello = ws.recv()               # OP 10 Hello payload
+        ws.send(json.dumps(identify))   # OP 2 Identify
+        ready = ws.recv()               # Ready payload
+        response = ws.recv()            # Dispatch payload
+        ws.close()
 
-    guild = AttrDict(json.loads(response))
-    pres = guild.d.presences
-
-    gamer = {}
-    for usr in pres:
-        if usr.game:
-            gamer[usr.user.id] = usr.game.name
-
-    return gamer
+        return json.loads(response)
 
     @command
     def discord(self, mask, target, args):
@@ -145,7 +139,7 @@ class DiscordPlugin(object):
 
     @asyncio.coroutine
     def get_ID(self, nick):
-        """Gets the discord id,associated with a user from the database.
+        """Gets the discord id, associated with a user from the database.
         """
         # XXX if there's no database setting for the user,
         # it will return the nick?
@@ -155,3 +149,16 @@ class DiscordPlugin(object):
             return None
         else:
             return result
+
+    def _parse_respose(response):
+        """Parses the websocket response in a dict  "discord_id": "game"
+        """
+        guild = AttrDict(response)
+        prsn = guild.d.presences
+
+        gamers = {}
+        for usr in prsn:
+            if usr.game:
+                gamer[usr.user.id] = usr.game.name
+
+        return gamers
