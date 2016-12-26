@@ -66,17 +66,25 @@ class DiscordPlugin(object):
         """
         wsr = self.discord_socket()
         gamer = _parse_response(wsr)
+        self.log.info("from discord: {0}".format(gamer))
 
         irc = {}
+        self.log.info("~~ userlist ~~")
+        self.log.info(self.bot.channels[target])
         for nick in self.bot.channels[target]:
-            if not nick:
+            if nick == '':
                 continue
             discord_id = yield from self.get_ID(nick)
-            if discord_id:
+            if not discord_id:
+                continue
+            else:
                 irc[discord_id] = nick
+        
+        self.log.info("storage dict: {0}".format(irc))
 
         result = [(gamer[key], irc[key]) for key in gamer if key in irc]
 
+        self.log.info("*~* result: {0}".format(result))
         d = defaultdict(list)
         for key, value in result:
             d[key].append(value)
@@ -95,7 +103,8 @@ class DiscordPlugin(object):
 
     def discord_socket(self):
         """
-        Handles the websocket with discord's gateway server, returns appropriate response as dictonary
+        Handles the websocket with discord's gateway server, 
+        returns appropriate response as dictonary
         """
         r = requests.get('https://discordapp.com/api/gateway')
         baseurl = r.json()['url']
@@ -118,16 +127,15 @@ class DiscordPlugin(object):
             }
         }
         # FIXME Not the correct way
-        self.log.info('connecting to websocket')
         ws = create_connection(url)
         hello = ws.recv()               # OP 10 Hello payload
         ws.send(json.dumps(identify))   # OP 2 Identify
         ready = ws.recv()               # Ready payload
         response = ws.recv()            # Dispatch payload
         ws.close()
+        self.log.info('websocket completed')
 
         result = json.loads(response)
-        self.log.info(result)
         return result
 
     @command
@@ -136,9 +144,8 @@ class DiscordPlugin(object):
 
         %%discord <id>
         """
-        self.log.info("Storing Discord ID: {0} for {1}".format(
-            args['<id>'], mask.nick))
-        self.bot.get_user(mask.nick).set_setting('discord', args['<id>'])
+        self.log.info("Storing Discord ID: {0} for {1}".format(args['<id>'], mask.nick))
+        self.bot.get_user(mask.nick).set_setting('discord',args['<id>'])
 
     @asyncio.coroutine
     def get_ID(self, nick):
@@ -146,7 +153,8 @@ class DiscordPlugin(object):
         """
         user = self.bot.get_user(nick)
         if user:
-            result = yield from user.get_setting('discord', None)
+            d_id = yield from user.get_setting('discord', None)
+            result = str(d_id)
             return result
 
     @classmethod
