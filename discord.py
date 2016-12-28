@@ -79,6 +79,10 @@ class DiscordPlugin(object):
 
         result = [(gamer[key], irc[key]) for key in gamer if key in irc]
 
+        if not result:
+            response = 'No one is currently playing games.'
+            return response
+
         d = defaultdict(list)
         for key, value in result:
             d[key].append(value)
