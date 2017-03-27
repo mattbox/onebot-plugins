@@ -25,6 +25,10 @@ class WeatherPlugin(object):
     """Plugin to provide:
 
     * Weather Plugin
+
+    Configuration settings:
+        - ``api_key`: API key for DarkSky.net
+        - ``ignored_channesl``: Channels to ignore
     """
 
     requires = [
@@ -37,6 +41,7 @@ class WeatherPlugin(object):
         self.bot = bot
         self.log = bot.log.getChild(__name__)
         self.config = bot.config.get(__name__, {})
+        self.ignored_channels = self.config.get('ignored_channels', [])
         try:
             self.api_key = self.config['api_key']
         except KeyError:
@@ -50,6 +55,9 @@ class WeatherPlugin(object):
         Weather - Reports the current weather for a given location.
         %%w [<location>]...
         """
+        if (mask.nick == self.bot.nick or target in self.ignored_channels):
+            return
+
         if target == self.bot.nick:
             target = mask.nick
 
@@ -69,7 +77,8 @@ class WeatherPlugin(object):
         local = " ".join(args['<location>'])
         if not local:
             location = yield from self.get_local(mask.nick)
-            if not location:
+            # XXX tempory fix
+            if location == mask.nick:
                 response = "Sorry, I don't remember where you are"
                 return response
         else:
@@ -124,8 +133,9 @@ class WeatherPlugin(object):
         """Gets the location, in the form of latitude and longitude,
         associated with a user from the database.
         """
+# XXX if there's no database setting for the user, it will return the nick?
         user = self.bot.get_user(nick)
-        result = yield from user.get_setting('userloc', None)
+        result = yield from user.get_setting('userloc', nick)
         return result
 
     def set_local(self, nick, location):
@@ -140,13 +150,17 @@ class WeatherPlugin(object):
         return cls(old.bot)
 
 
-def _unixformat(uxtime, tz):
+def _unixformat(uxtime, tz, Date=False):
+    # NOTE not currently being used
     """
     Handles time zone conversions
     and converts unix time into readable format
 
-    example: "9:34PM GMT"
+    example: "9:34 PM GMT (08/24/16)"
     """
     tzlocal = timezone(tz)
+    fmt = "%I:%M%p %Z"
+    if Date:
+        fmt += " (%m/%d/%y)"
     time = datetime.fromtimestamp(int(uxtime), tz=tzlocal)
-    return "{:%I:%M%p %Z}".format(time)
+    return time.strftime(fmt)
