@@ -65,19 +65,7 @@ class DiscordPlugin(object):
         Returns the appropriate response to .play request
         """
         wsr = self.discord_socket()
-        gamer = _parse_response(wsr)
-
-        irc = {}
-        for nick in self.bot.channels[target]:
-            if nick == '':
-                continue
-            discord_id = yield from self.get_ID(nick)
-            if not discord_id:
-                continue
-            else:
-                irc[discord_id] = nick
-
-        result = [(gamer[key], irc[key]) for key in gamer if key in irc]
+        result = _parse_response(wsr)
 
         if not result:
             response = 'No one is currently playing games.'
@@ -136,26 +124,6 @@ class DiscordPlugin(object):
         result = json.loads(response)
         return result
 
-    @command
-    def discord(self, mask, target, args):
-        """set Discord ID for a user
-
-        %%discord <id>
-        """
-        self.log.info("Storing Discord ID: {0} for {1}".format(
-            args['<id>'], mask.nick))
-        self.bot.get_user(mask.nick).set_setting('discord', args['<id>'])
-
-    @asyncio.coroutine
-    def get_ID(self, nick):
-        """Gets the discord id, associated with a user from the database.
-        """
-        user = self.bot.get_user(nick)
-        if user:
-            d_id = yield from user.get_setting('discord', None)
-            result = str(d_id)
-            return result
-
     @classmethod
     def reload(cls, old):
         return cls(old.bot)
@@ -165,11 +133,17 @@ def _parse_response(response):
     """Parses the websocket response in a dict  "discord_id": "game"
     """
     guild = AttrDict(response)
-    prsn = guild.d.presences
 
-    gamer = {}
-    for usr in prsn:
-        if usr.game:
-            gamer[usr.user.id] = usr.game.name
+    gamers = {}
+    for gamer in guild.d.presences:
+        if gamer.game:
+            gamers[gamer.user.id] = gamer.game.name
 
-    return gamer
+
+    players = {}
+    for player in guild.d.members:
+        players[player.user.id] = [player.user.username]
+
+    results = [(gamers[key], players[key]) for key in gamers if key in players]
+
+    return results
